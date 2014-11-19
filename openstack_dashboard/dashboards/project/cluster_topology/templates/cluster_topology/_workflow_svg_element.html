@@ -1,0 +1,162 @@
+{% load i18n %}
+<style type="text/css">
+svg#workflow_canvas {
+  font: 12px sans-serif;
+}
+
+svg#workflow_canvas .node {
+  cursor: default;
+}
+
+svg#workflow_canvas path.link {
+  stroke: black;
+  stroke-width: 4px;
+  stroke-dasharray: 10,2;
+}
+
+svg#workflow_canvas path.link.running {
+  stroke-dasharray: none;
+  stroke: #337ab7;
+}
+
+svg#workflow_canvas path.link.error {
+  stroke-dasharray: none;
+  stroke: #d9534f;
+}
+
+svg#workflow_canvas path.link.ok {
+  stroke-dasharray: none;
+  stroke: #5cb85c;
+}
+
+svg#workflow_canvas .running .frame {
+  stroke: #337ab7 !important;
+}
+
+svg#workflow_canvas .running .texts_bg {
+  fill: #337ab7 !important;
+}
+
+svg#workflow_canvas .error .frame {
+  stroke: #d9534f !important;
+}
+
+svg#workflow_canvas .error .texts_bg {
+  fill: #d9534f !important;
+}
+
+svg#workflow_canvas .ok .frame {
+  stroke: #5cb85c !important;
+}
+
+svg#workflow_canvas .ok .texts_bg {
+  fill: #5cb85c !important;
+}
+
+svg#workflow_canvas .base_bg_normal {
+  fill: #333;
+}
+
+svg#workflow_canvas .start_container_normal .frame,
+svg#workflow_canvas .kill_container_normal .frame,
+svg#workflow_canvas .end_container_normal .frame,
+svg#workflow_canvas .java_container_normal .frame,
+svg#workflow_canvas .fork_container_normal .frame,
+svg#workflow_canvas .map-reduce_container_normal .frame,
+svg#workflow_canvas .join_container_normal .frame {
+  fill: #fff;
+  stroke: #333;
+  stroke-width: 4;
+}
+
+svg#workflow_canvas .start_container_normal .texts_bg,
+svg#workflow_canvas .kill_container_normal .texts_bg,
+svg#workflow_canvas .end_container_normal .texts_bg,
+svg#workflow_canvas .java_container_normal .texts_bg,
+svg#workflow_canvas .fork_container_normal .texts_bg,
+svg#workflow_canvas .map-reduce_container_normal .texts_bg,
+svg#workflow_canvas .join_container_normal .texts_bg {
+  fill: url('#device_normal_bg');
+}
+
+svg#workflow_canvas .start_container_normal .texts .name,
+svg#workflow_canvas .kill_container_normal .texts .name,
+svg#workflow_canvas .end_container_normal .texts .name,
+svg#workflow_canvas .java_container_normal .texts .name,
+svg#workflow_canvas .fork_container_normal .texts .name,
+svg#workflow_canvas .map-reduce_container_normal .texts .name,
+svg#workflow_canvas .join_container_normal .texts .name {
+  text-anchor: middle;
+  fill: #333;
+  font-size: 12px;
+}
+
+svg#workflow_canvas .start_container_normal .texts .type,
+svg#workflow_canvas .kill_container_normal .texts .type,
+svg#workflow_canvas .end_container_normal .texts .type,
+svg#workflow_canvas .java_container_normal .texts .type,
+svg#workflow_canvas .fork_container_normal .texts .type,
+svg#workflow_canvas .map-reduce_container_normal .texts .type,
+svg#workflow_canvas .join_container_normal .texts .type {
+  text-anchor: middle;
+  fill: #fff;
+  font-size: 12px;
+}
+</style>
+
+<svg width="400" height="400" id="workflow_canvas">
+  <pattern id="device_normal_bg" patternUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
+    <g>
+      <rect width="20" height="20" class="base_bg_normal"></rect>
+    </g>
+  </pattern>
+</svg>
+
+<svg id="workflow_template" display="none">
+  <g class="start_container_normal device_body">
+    <rect class="frame" x="-45" y="-25" rx="25" width="90" height="50"></rect>
+    <g class="texts">
+      <text x="0" y="5" class="name">{% trans "Start" %}</text>
+    </g>
+  </g>
+  <g class="kill_container_normal device_body">
+    <rect class="frame" x="-45" y="-25" rx="25" width="90" height="50"></rect>
+    <g class="texts">
+      <text x="0" y="5" class="name">{% trans "Kill" %}</text>
+    </g>
+  </g>
+  <g class="end_container_normal device_body">
+    <rect class="frame" x="-45" y="-25" rx="25" width="90" height="50"></rect>
+    <g class="texts">
+      <text x="0" y="5" class="name">{% trans "End" %}</text>
+    </g>
+  </g>
+  <g class="java_container_normal device_body">
+    <rect class="frame" x="-45" y="-25" rx="5" ry="5" width="90" height="50"></rect>
+    <g class="texts">
+      <rect class="texts_bg" x="-43.5" y="7" width="87" height="17"></rect>
+      <text x="0" y="21" class="type">{% trans "Java Action" %}</text>
+      <text x="0" y="-3" class="name"></text>
+    </g>
+  </g>
+  <g class="fork_container_normal device_body">
+    <path class="frame" d="M0,-25L42.5,0L0,25L-42.5,0Z"></path>
+    <g class="texts">
+      <text x="0" y="5" class="name">{% trans "Fork" %}</text>
+    </g>
+  </g>
+  <g class="map-reduce_container_normal device_body">
+    <rect class="frame" x="-45" y="-25" rx="5" ry="5" width="90" height="50"></rect>
+    <g class="texts">
+      <rect class="texts_bg" x="-43.5" y="7" width="87" height="17"></rect>
+      <text x="0" y="21" class="type">{% trans "MapReduce" %}</text>
+      <text x="0" y="-3" class="name"></text>
+    </g>
+  </g>
+  <g class="join_container_normal device_body">
+    <path class="frame" d="M-35,-20L35,-20L0,40Z"></path>
+    <g class="texts">
+      <text x="0" y="2" class="name">{% trans "Join" %}</text>
+    </g>
+  </g>
+</svg>

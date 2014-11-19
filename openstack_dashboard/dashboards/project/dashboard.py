@@ -71,6 +71,12 @@ class DataProcessingPanels(horizon.PanelGroup):
               'data_processing.data_plugins',)
 
 
+class ClusterManagementPanels(horizon.PanelGroup):
+    name = _("Cluster Management")
+    slug = "cluster_management"
+    panels = ('cluster_topology',)
+
+
 class Project(horizon.Dashboard):
     name = _("Project")
     slug = "project"
@@ -80,7 +86,8 @@ class Project(horizon.Dashboard):
         ObjectStorePanels,
         OrchestrationPanels,
         DatabasePanels,
-        DataProcessingPanels,)
+        DataProcessingPanels,
+	ClusterManagementPanels,)
     default_panel = 'overview'
     supports_tenants = True
 

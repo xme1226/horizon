@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load url from future %}
+{% block title %}{% trans "Cluster Topology" %}{% endblock %}
+
+{% block page_header %}
+  {% include "horizon/common/_page_header.html" with title=_("Cluster Topology") %}
+{% endblock page_header %}
+
+{% block css %}
+	{% include "_stylesheets.html" %}
+
+	{% load compress %}
+	{% compress css %}
+		{% include "project/cluster_topology/_stylesheets.html" %}
+	{% endcompress %}
+{% endblock %}
+
+{% block main %}
+
+<noscript>
+{% trans "This pane needs javascript support." %}
+</noscript>
+
+{% include "project/cluster_topology/client_side/_balloon_container.html" %}
+{% include "project/cluster_topology/client_side/_balloon_instance.html" %}
+
+<div id="topologyCanvasContainer">
+  <div class="nodata">{% blocktrans %}There are no clusters to display.{% endblocktrans %}</div>
+
+  {% include "project/cluster_topology/_cluster_svg_element.html" %}
+</div>
+
+<table class="jobs">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for job in jobs %}
+    <tr>
+     <td>{{job.name}}</td>
+     <td><a href="{% url "horizon:project:cluster_topology:launch-job" %}?job_id={{ job.id }}" class="btn btn-default btn-sm ajax-modal btn-launch">{% trans "Launch On Existing Cluster" %}</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div id="workflowCanvasContainer">
+  <div class="nodata">{% blocktrans %}There is no oozie workflow to display.{% endblocktrans %}</div>
+
+  {% include "project/cluster_topology/_workflow_svg_element.html" %}
+</div>
+
+{% if job_execution_id %}
+<span data-workflowtopology="{% url "horizon:project:cluster_topology:workflow-json" job_execution_id%}" id="workflowtopology"></span>
+{% endif %}
+
+{% include "project/cluster_topology/_cluster_topology.html" %}
+{% include "project/cluster_topology/_workflow_topology.html" %}
+{% endblock %}

@@ -1,0 +1,51 @@
+<style>	
+	#topologyCanvasContainer,
+	#workflowCanvasContainer { 
+  		background: white;
+		float: left;
+		width: 100%;
+	}
+
+	#topologyCanvasContainer {
+		max-width: 800px;
+	}
+
+	#workflowCanvasContainer {
+		width: 1000px;
+	}
+
+	#workflowCanvasContainer .nodata {
+		font-size: 150%;
+		text-align: center;
+		padding-top: 150px;
+		padding-bottom: 150px;
+		display: none;
+	}
+
+	#workflowCanvasContainer.noinfo .nodata {
+		display: block;
+	}
+
+	.jobs {
+		float: right;
+	}
+
+	.jobs th,
+	.jobs td {
+		border-bottom: 1px solid #555;
+		padding: 5px;
+		text-align: center;
+		font-weight: normal;
+	}
+
+	.jobs th {
+		background: #333;
+		color: white;
+		border-top-left-radius: 6px;
+	}
+
+	.jobs th:nth-child(even) {
+		border-top-right-radius: 6px;
+		border-top-left-radius: 0px;
+	}
+</style>

@@ -1,0 +1,298 @@
+<script type="text/javascript">
+    workflow_topology = {
+        svg: '#workflow_canvas',
+        svg_container: '#workflowCanvasContainer',
+        width: 1000,
+        height: 500,
+        ":START:_tmpl": {
+            normal: '#workflow_template > .start_container_normal'
+        },
+        ":END:_tmpl": {
+            normal: '#workflow_template > .end_container_normal'
+        },
+        ":KILL:_tmpl": {
+            normal: '#workflow_template > .kill_container_normal'
+        },
+        ":FORK:_tmpl": {
+            normal: '#workflow_template > .fork_container_normal'
+        },
+        ":JOIN:_tmpl": {
+            normal: '#workflow_template > .join_container_normal'
+        },
+        "java_tmpl": {
+            normal: '#workflow_template > .java_container_normal'
+        },
+        "map-reduce_tmpl": {
+            normal: '#workflow_template > .map-reduce_container_normal'
+        },
+        reload_duration: 10000,
+        draw_mode: 'normal',
+        element_properties: {
+            device_name_max_size: 9,
+            device_name_suffix: ".."
+        },
+        init: function() {
+            var self = this;
+            if ($('#workflowtopology').length === 0) {
+		$('#workflow_canvas').remove();
+                return;
+            }
+
+	    $(self.svg_container).spin(horizon.conf.spinner_options.modal);
+
+            self.color = d3.scale.category10();
+
+            // set up initial nodes
+	    var nodes = self.nodes = [{
+		name: "start",
+		type: ":START:",
+		position: {x: 50, y: 250},
+		transition: ["split"]
+	    }, {
+		name: "split",
+		type: "java",
+		position: {x: 200, y: 250},
+		transition: ["fork"]
+	    }, {
+		name: "fork",
+		type: ":FORK:",
+		position: {x: 350, y: 250},
+		transition: ["ffmpeg1", "ffmpeg2", "ffmpeg3"]
+	    }, {
+		name: "ffmpeg1",
+		type: "map-reduce",
+		position: {x: 500, y: 100},
+		transition: ["join"]
+	    }, {
+		name: "ffmpeg2",
+		type: "map-reduce",
+		position: {x: 500, y: 250},
+		transition: ["join"]
+	    }, {
+		name: "ffmpeg3",
+		type: "map-reduce",
+		position: {x: 500, y: 400},
+		transition: ["join"]
+	    }, {
+		name: "join",
+		type: ":JOIN:",
+		position: {x: 650, y: 250},
+		transition: ["merge"]
+	    }, {
+		name: "merge",
+		type: "java",
+		position: {x: 800, y: 250},
+		transition: ["end"]
+	    }, {
+		name: "end",
+		type: ":END:",
+		position: {x: 950, y: 250},
+		transition: []
+	    }];
+	    
+	    var index = self.index = {};
+	    for(var i = 0;i < nodes.length;++i)
+		index[nodes[i].name] = i;
+
+	    var links = self.links = [];
+	    for(var i = 0;i < nodes.length;++i)
+		for(var j = 0;j < nodes[i].transition.length;++j)
+		links.push({ from: i, to: self.get_node_index(nodes[i].transition[j]) });
+
+            // set up svg element
+            var svg = d3.select(self.svg)
+		.attr("width", self.width)
+                .attr("height", self.height);
+
+            // define arrow marker for graph links
+            svg.append("svg:defs").selectAll("marker")
+                .data(["default", "running", "error", "ok"])
+                .enter().append("svg:marker")
+                .attr("id", String)
+                .attr("viewBox", "0 -5 10 10")
+                .attr("refX", 8)
+                .attr("markerWidth", 3)
+                .attr("markerHeight", 3)
+                .attr("orient", "auto")
+                .append("svg:path")
+                .attr("d", "M0,-5L10,0L0,5")
+                .style("fill", function(d) {
+		    if(d === "default") return "black";
+		    else if(d === "running") return "#337ab7";
+		    else if(d === "error") return "#d9534f";
+		    else return "#5cb85c";
+		 });
+
+	    // init nodes and links
+	    svg.append("svg:g").selectAll(".link")
+		.data(links)
+		.enter().append("path")
+		.attr("class", "link")
+		.attr("d", function(d){
+		    var to = nodes[d.to],
+			from = nodes[d.from],
+			dx = to.position.x - from.position.x,
+                        dy = to.position.y - from.position.y,
+                        dist = Math.sqrt(dx * dx + dy * dy),
+                        Nx = dx / dist,
+                        Ny = dy / dist,
+                        sourcePadding = 0,
+                        targetPadding = 50,
+                        Sx = from.position.x + (sourcePadding * Nx),
+                        Sy = from.position.y + (sourcePadding * Ny),
+                        Tx = to.position.x - (targetPadding * Nx),
+                        Ty = to.position.y - (targetPadding * Ny);
+
+                    return 'M' + Sx + "," + Sy + "L" + Tx + "," + Ty;
+		})
+		.each(function(d) {
+		    var classList = this.classList;
+		    classList.add(nodes[d.to].name);
+		    classList.add(nodes[d.from].name);
+		})
+		.style("marker-end", "url(#default)");
+
+	    svg.append("svg:g").selectAll(".node")
+		.data(nodes)
+		.enter().append("g")
+		.attr("class", "node")
+		.attr("transform", function(d) { return "translate(" + d.position.x + "," + d.position.y + ")"; })
+		.each(function(d) {
+		    var node_template = self[d.type + "_tmpl"][self.draw_mode];
+		    this.appendChild(d3.select(node_template).node().cloneNode(true));
+		    d3.select(this).select(".name").text(function(d) {
+			return self.string_truncate(d.name);
+           	    });
+
+		    this.classList.add(d.name);
+		});
+
+	    self.load_workflow_info();
+        },
+        load_workflow_info: function() {
+            var self = this;
+            if ($('#workflowtopology').length === 0) {
+		$('#workflow_canvas').remove();
+                return;
+            }
+
+            // get workflow info from server
+            $.getJSON($('#workflowtopology').data('workflowtopology') + '?' + $.now(),
+                function(data) {
+                    var model = self.model = data.model;
+                    model.status = model.status.toLowerCase();
+
+                    console.log("model: ", model);
+                    if (model.status === "failed") {
+                        $(self.svg_container).spin(false);
+                        $(self.svg_container).addClass('noinfo');
+			$('#workflow_canvas').remove();
+                    }
+
+            	    else if (model.actions) self.update_workflow_info();
+
+                    if (model.status === "pending" || model.status === "running")
+            	    {
+                        setTimeout(function() {
+                            self.load_workflow_info();
+                        }, self.reload_duration);
+            	    }
+                }
+            );
+        },
+        update_workflow_info: function() {
+            var self = this;
+            var nodes = self.nodes;
+
+            var updated = false;
+            $.each(self.model.actions, function(i, action) {
+                var name = action.name.replace(/:/g, "").toLowerCase();
+                var transition = action.transition;
+                var pos = self.get_node_index(name);
+
+		var node = nodes[pos];
+		var status = action.status.toLowerCase();
+		if(node && node.status !== status)
+		    updated = true, node.status = status;
+            });
+
+            if (updated) self.update_topology();
+        },
+        update_topology: function() {
+            var self = this;
+	    var nodes = self.nodes;
+	    var links = self.links;
+ 
+	    $(self.svg_container).spin(false);
+            $(self.svg_container).removeClass('noinfo');
+
+	    $.each(nodes, function(i, node) {
+		var $node = $(".node." + node.name);
+		var classList = $node[0].classList;
+
+		if(node) {
+		    if(node.status === "running") classList.add("running");
+		    else classList.remove("running");
+
+		    if(node.status === "error") classList.add("error");
+		    else if(node.status === "ok") {
+			//if(node.type === "map-reduce") nodes[3].status = nodes[4].status = nodes[5].status = "ok";
+			classList.add("ok");
+		    }
+		}
+	    });
+
+	    $.each(links, function(i, link) {
+		var from = nodes[link.from],
+		    to = nodes[link.to];
+		var $link = $(".link." + from.name + "." + to.name);
+		var classList = $link[0].classList;
+		if(is_running(link)) classList.add("running"), $link.css("marker-end", "url(#running)");
+		else classList.remove("running"), $link.css("marker-end", "url(#default)");
+
+		if(is_error(link)) classList.add("error"), $link.css("marker-end", "url(#error)");
+		else if(is_ok(link)) {
+		    //if(from.type === "map-reduce") nodes[3].status = nodes[4].status = nodes[5].status = "ok";
+		    classList.add("ok"), $link.css("marker-end", "url(#ok)");
+		}
+	    });
+
+	    function is_running(link) {
+		return nodes[link.from].status === "running";
+	    }
+
+	    function is_error(link) {
+		return nodes[link.from].status === "error";
+	    }
+
+	    function is_ok(link) {
+		return nodes[link.from].status === "ok";
+	    }
+        },
+        get_action_color: function(name) {
+            return this.color(name);
+        },
+        get_node_index: function(name) {
+            return this.index[name];
+        },
+        string_truncate: function(string) {
+            var self = this;
+            var str = string;
+            var max_size = self.element_properties.device_name_max_size;
+            var suffix = self.element_properties.device_name_suffix;
+            var bytes = 0;
+            for (var i = 0; i < str.length; i++) {
+                bytes += str.charCodeAt(i) <= 255 ? 1 : 2;
+                if (bytes > max_size) {
+                    str = str.substr(0, i) + suffix;
+                    break;
+                }
+            }
+            return str;
+        }
+    };
+
+    addHorizonLoadEvent(function() {
+        workflow_topology.init()
+    });
+</script>

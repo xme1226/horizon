@@ -1,0 +1,375 @@
+<script type="text/javascript">
+    cluster_topology = {
+        svg: '#topology_canvas',
+        svg_container: '#topologyCanvasContainer',
+        width: 800,
+        height: 688,
+	root_tmpl: {
+	    normal: '#topology_template > .root_normal'
+	},
+        cluster_tmpl: {
+            normal: '#topology_template > .cluster_normal'
+        },
+        node_group_tmpl: {
+            normal: '#topology_template > .node_group_normal'
+        },
+        instance_tmpl: {
+            normal: '#topology_template > .instance_normal'
+        },
+	reload_duration: 10000,
+        balloon_tmpl: null,
+        balloon_instance_tmpl: null,
+        balloon_id: null,
+        draw_mode: 'normal',
+        element_properties: {
+            normal: {
+		default_height: 60,
+		default_margin: {
+		    y: 25
+		},
+                instance_x: 98.5,
+                instance_width: 90,
+                texts_bg_y: 32,
+                balloon_margin: {
+                    x: 12,
+                    y: -12
+                }
+            },
+            name_max_size: 7,
+            name_suffix: ".."
+        },
+        init: function() {
+            var self = this;
+            $(self.svg_container).spin(horizon.conf.spinner_options.modal);
+
+            self.color = d3.scale.category10();
+
+            // init instance template
+            self.balloon_tmpl = Hogan.compile($("#balloon_container").html());
+            self.balloon_instance_tmpl = Hogan.compile($('#balloon_instance').html());
+
+            $(document)
+                .on("click", "a.closeTopologyBalloon", function(e) {
+                    e.preventDefault();
+                    self.delete_balloon();
+                })
+                .on("click", ".topologyBalloon", function(e) {
+                    e.stopPropagation();
+                })
+                .on("click", "a.vnc_window", function(e) {
+                    e.preventDefault();
+                    var vnc_window = window.open($(this).attr('href'), vnc_window, 'width=760,height=560');
+                    self.delete_balloon();
+                })
+                .click(function() {
+                    self.delete_balloon();
+                });
+
+	    self.diagonal = d3.svg.diagonal().projection(function(d){ return [d.y, d.x]; });
+
+            // set up svg element
+            var svg = d3.select(self.svg)
+                .attr("width", self.width);
+
+            self.link = svg.append("svg:g").attr("transform", "translate(10, 0)").selectAll(".link");
+            self.node = svg.append("svg:g").attr("transform", "translate(10, 0)").selectAll(".node");
+
+            self.load_cluster_list();
+        },
+        load_cluster_list: function() {
+            var self = this;
+
+            // get cluster list from server
+            $.getJSON('/project/cluster_topology/json?' + $.now(),
+                function(data) {
+                    var clusters = self.clusters = data.clusters;
+
+                    console.log("clusters: ", clusters);
+                    if (clusters.length === 0) {
+                        $(self.svg_container).spin(false);
+                        $(self.svg_container).addClass('noinfo');
+                    }
+
+		    else {
+			var isActive = true;
+			$.each(self.clusters, function(name, cluster) {
+			    cluster.status = cluster.status.toLowerCase();
+			    isActive = isActive && (cluster.status === "active");
+			})
+
+			self.update_cluster_info();
+
+			if(!isActive)
+			    setTimeout(function() {
+				self.load_cluster_list();
+			    }, self.reload_duration);
+		    }
+                }
+            );
+        },
+        update_cluster_info: function() {
+            var self = this;
+
+            var clusters = [];
+	    var id = 0,
+		count = 0;
+
+            $.each(self.clusters, function(name, cluster) {
+                var node_groups = [];
+                $.each(cluster.node_groups, function(i, node_group) {
+                    var instances = [];
+                    $.each(node_group.instances, function(i, instance) {
+                        var instance_node = {
+                            display_name: instance.instance_name,
+                            type: "instance",
+                            display_id: instance.id,
+                            url: instance.url,
+                            console: instance.console,
+			    status: cluster.status,
+			    name: ++id
+                        };
+
+                        instances.push(instance_node);
+			++count;
+                    });
+
+                    var node_group_node = {
+                        display_name: node_group.name,
+                        display_id: node_group.node_group_template_id,
+			url: node_group.url,
+                        children: instances,
+                        type: "node_group",
+			status: cluster.status,
+			name: ++id
+                    };
+
+                    node_groups.push(node_group_node);
+		    if(instances.length == 0) ++count;
+                });
+
+                clusters.push({
+                    display_name: cluster.name,
+                    display_id: cluster.id,
+		    url: cluster.url,
+                    children: node_groups,
+                    type: "cluster",
+		    status: cluster.status,
+		    name: ++id
+                });
+
+		if(node_groups.length == 0) ++count;
+            });
+
+	    var element_properties = self.element_properties[self.draw_mode];
+	    self.height = (element_properties.default_height + element_properties.default_margin.y) * count;
+
+	    d3.select(self.svg).attr("height", self.height);
+
+	    // init d3 cluster layout
+            self.cluster = d3.layout.cluster()
+                .size([self.height, self.width - 150]); 
+
+            self.clusters = clusters;
+	    self.rootClicked = false;
+            self.update_topology();
+        },
+        update_topology: function() {
+            var self = this;
+            $(self.svg_container).spin(false);
+            $(self.svg_container).removeClass('noinfo');
+
+            var cluster = self.cluster;
+	    var root = {
+		name: 0,
+		display_name: "clusters",
+		type: "root",
+		children: (self.rootClicked ? [] : self.clusters),
+		status: "active"
+	    };
+
+            var nodes = cluster.nodes(root);
+            var links = cluster.links(nodes);
+
+            // update the links
+            var link = self.link = self.link.data(links, function(d){ return d.target.name }).attr("d", self.diagonal);
+
+            // remove old links
+            link.exit().remove();
+
+            // append new links
+            link.enter().append("svg:path")
+                .attr("class", "link")
+		.attr("d", self.diagonal);
+
+
+            // update the nodes
+            var node = self.node = self.node.data(nodes, function(d){ return d.name; }).attr("transform", function(d){ return "translate(" + d.y + "," + d.x + ")"; })
+		.style("opacity", function(d) { return d.status === "active" ? 1 : 0.5; })
+		.each(function(d) {
+		    d3.select(this).select(".device_body").remove();
+
+		    var node_template = self[d.type + "_tmpl"][self.draw_mode];
+                    this.appendChild(d3.select(node_template).node().cloneNode(true));
+
+                    d3.select(this).select("circle")
+                      .style("fill", function(d) {
+                          return self.get_action_color(d.name);
+                    });
+		});
+
+            // remove old nodes
+            node.exit().remove();
+
+            // append new nodes
+            var g = node.enter().append("g");
+
+            g.each(function(d) {
+                var node_template = self[d.type + "_tmpl"][self.draw_mode];
+                this.appendChild(d3.select(node_template).node().cloneNode(true));
+
+                d3.select(this).select("circle")
+                    .style("fill", function(d) {
+                        return self.get_action_color(d.name);
+                    });
+            })
+		.attr("transform", function(d){ return "translate(" + d.y + "," + d.x + ")"; })
+                .attr("class", "node")
+                .classed("instance", function(d) {
+                    return d.type === "instance";
+                })
+                .on("click", click)
+                .on("mouseover", function(d) {
+		    if(d.type !== "root")
+                    	self.show_balloon(d, $(this))
+                })
+		.transition().style("opacity", function(d) { return d.status === "active" ? 1 : 0.5; });
+
+            node.select(".name").text(function(d) {
+                return self.string_truncate(d.display_name);
+            });
+	
+	    node.select(".icon").style("fill", function(d) { return d.status === "active" ? "white" : "#333"; });
+
+            // toggle children on click
+            function click(d) {
+                if (!d3.event.defaultPrevented && d.type !== "instance") {
+                    if (d.children) {
+                        d._children = d.children;
+                        d.children = null;
+                    } else
+                        d.children = d._children;
+
+		    if(!d.name) self.rootClicked = !self.rootClicked;
+
+                    self.update_topology();
+                }
+            }
+        },
+        show_balloon: function(d, element) {
+            var self = this;
+            var element_properties = self.element_properties[self.draw_mode];
+            var balloon_id = element.data("balloon_id");
+
+            var $balloon = $('#' + balloon_id);
+            if (!$balloon.hasClass("shown")) self.delete_balloon();
+
+            if (!balloon_id) {
+                var balloon_tmpl = self.balloon_tmpl;
+                var instance_tmpl = self.balloon_instance_tmpl;
+
+                balloon_id = 'bl_' + d.name;
+                element.data("balloon_id", balloon_id);
+
+                var html_data = {
+                    balloon_id: balloon_id,
+                    id: d.display_id,
+                    url: d.url,
+                    name: d.display_name,
+                    type: d.type,
+                    id_label: gettext("ID"),
+                    open_console_label: gettext("Open Console"),
+                    view_details_label: gettext("View Details")
+                };
+
+                html_data.delete_label = gettext("Terminate Instance");
+				
+				if(d.type === "instance")
+				{
+					html_data.console_id = d.display_id;
+					html_data.view_details_label = gettext("View Instance Details");
+				}
+
+				else if(d.type === "node_group")
+					html_data.view_details_label = gettext("View Node Group Details");
+
+				else if(d.type === "cluster")
+					html_data.view_details_label = gettext("View Cluster Details");
+					
+					
+                html_data.console = d.console;
+                html = balloon_tmpl.render(html_data, {
+                    table: instance_tmpl
+                });
+
+                $(self.svg_container).append(html);
+                $balloon = $('#' + balloon_id);
+            }
+
+            var instance_position = element.find('.frame');
+            var x = instance_position.position().left +
+                element_properties.instance_width +
+                element_properties.balloon_margin.x;
+            var y = instance_position.position().top +
+                element_properties.balloon_margin.y;
+
+            $balloon.css({
+                'left': x + 'px',
+                'top': y + 'px'
+            }).addClass("shown").show();
+
+            if ($balloon.offset().left + $balloon.outerWidth() > $(window).outerWidth()) {
+                $balloon
+                    .css({
+                        'left': 0 + 'px'
+                    })
+                    .css({
+                        'left': (instance_position.position().left - $balloon.outerWidth() -
+                            element_properties.balloon_margin.x + 'px')
+                    })
+                    .addClass('leftPosition');
+            }
+
+            self.balloon_id = balloon_id;
+        },
+        delete_balloon: function() {
+            var self = this;
+            var balloon_id = self.balloon_id;
+            if (balloon_id) {
+                $('#' + balloon_id).removeClass("shown").hide();
+                self.balloon_id = null;
+            }
+        },
+        get_action_color: function(name) {
+            return this.color(name);
+        },
+        string_truncate: function(string) {
+            var self = this;
+            var str = string;
+            var max_size = self.element_properties.name_max_size;
+            var suffix = self.element_properties.name_suffix;
+            var bytes = 0;
+            for (var i = 0; i < str.length; i++) {
+                bytes += str.charCodeAt(i) <= 255 ? 1 : 2;
+                if (bytes > max_size) {
+                    str = str.substr(0, i) + suffix;
+                    break;
+                }
+            }
+            return str;
+        }
+    };
+
+    addHorizonLoadEvent(function() {
+        cluster_topology.init();
+    });
+</script>
